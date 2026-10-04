@@ -16,8 +16,8 @@ python3 -m PyInstaller --noconfirm --clean --onefile \
 python3 -m PyInstaller --noconfirm --clean --onedir --windowed \
   --name Achieve3000Launcher launcher.py
 
-APP_MACOS_DIR="dist/Achieve3000Launcher/Achieve3000Launcher.app/Contents/MacOS"
+APP_MACOS_DIR="dist/Achieve3000Launcher.app/Contents/MacOS"
 cp "dist/achieve3000_automation" "$APP_MACOS_DIR/achieve3000_automation"
 cp -R "$ROOT_DIR/playwright-browsers" "$APP_MACOS_DIR/playwright-browsers"
 
-echo "Created macOS app bundle: dist/Achieve3000Launcher/Achieve3000Launcher.app"
+echo "Created macOS app bundle: dist/Achieve3000Launcher.app"
