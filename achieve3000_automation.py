@@ -698,8 +698,8 @@ class Bot:
                 except Exception as e:
                     logger.warning(f"  Link #{lesson_number} error: {e}")
 
-            if empty_scans >= 2:
-                logger.info("No new lesson links in two consecutive grid scans; stopping safely.")
+            if empty_scans >= 2 and stalled_passes >= 2:
+                logger.info("No new lesson links and the lesson grid has stopped moving; stopping safely.")
                 break
 
             scroll_result = self.page.evaluate("""() => {
