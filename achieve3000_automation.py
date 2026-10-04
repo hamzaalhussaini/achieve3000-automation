@@ -26,6 +26,12 @@ ALL_TYPES = ["2-Step Lesson", "5-Step Lesson", "Article Only", "Video", "Instruc
 MAX_AI_FAILURES = 5
 AI_RETRY_DELAY_SECONDS = 5
 
+# Keep the normal flows conservative, but avoid stacking fixed sleeps on the
+# Ready/Reflect pages of a 5-step lesson.  Those pages are already rendered by
+# the time their controls are visible, so a short render settle is sufficient.
+FAST_STEP_SETTLE_SECONDS = 0.25
+FAST_EDITOR_POLL_SECONDS = 0.2
+
 
 class AIResponseError(RuntimeError):
     """Raised when the model cannot provide a usable response."""
@@ -312,10 +318,8 @@ class Bot:
                     const d = f.contentDocument || f.contentWindow.document;
                     if (d && d.body) {
                         d.body.innerHTML = t;
-                        setTimeout(() => {
-                            d.body.innerHTML += ' ';
-                            d.body.dispatchEvent(new Event('input', {bubbles:true}));
-                        }, 200);
+                        d.body.innerHTML += ' ';
+                        d.body.dispatchEvent(new Event('input', {bubbles:true}));
                         return 'iframe';
                     }
                 }
@@ -355,7 +359,8 @@ class Bot:
             logger.warning(f"fill err: {e}"); return False
 
     def wait_for_editor(self, timeout=6) -> bool:
-        for _ in range(timeout * 2):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
             found = self.page.evaluate("""() => !!(
                 document.querySelector('.tox-edit-area__iframe') ||
                 (window.tinymce && window.tinymce.editors && window.tinymce.editors.length) ||
@@ -363,7 +368,7 @@ class Bot:
                 document.querySelector('[contenteditable="true"]')
             )""")
             if found: return True
-            self.s(0.5)
+            self.s(FAST_EDITOR_POLL_SECONDS)
         return False
 
     def submit_btn(self) -> bool:
@@ -470,6 +475,40 @@ class Bot:
                         self.dismiss()
                     return clicked
             except: pass
+        return False
+
+    def next_btn_fast(self) -> bool:
+        """Advance a rendered 5-step page without fixed network-idle sleeps."""
+        candidates = [
+            "button:has-text('Next')",
+            "a:has-text('Next')",
+            "input[value='Next']",
+            "button:has-text('Continue')",
+            "a:has-text('Continue')",
+            "button:has-text('Done')",
+            "button:has-text('Finish')",
+            "button:has-text('Submit')",
+        ]
+        before_url = self.page.url
+        for selector in candidates:
+            try:
+                loc = self.page.locator(selector).first
+                if not loc.is_visible(timeout=350):
+                    continue
+                if loc.get_attribute('disabled') is not None:
+                    continue
+                if not self.clk(loc):
+                    continue
+                try:
+                    self.page.wait_for_url(
+                        lambda url: url != before_url, timeout=2500
+                    )
+                except Exception:
+                    # Some lesson steps update in place instead of changing URL.
+                    self.page.wait_for_timeout(int(FAST_STEP_SETTLE_SECONDS * 1000))
+                return True
+            except Exception:
+                pass
         return False
 
     def _scroll_reading_to_end(self):
@@ -978,9 +1017,10 @@ class Bot:
         return True
 
     # ── Shared: Ready/Reflect poll + text ───────
-    def _do_poll_and_text(self, step_name: str):
+    def _do_poll_and_text(self, step_name: str, fast: bool = False):
         logger.info(f"[{step_name}]")
-        self.s(1.5); self.dismiss()
+        self.s(FAST_STEP_SETTLE_SECONDS if fast else 1.5)
+        self.dismiss()
 
         has_poll = self.page.evaluate("""() => {
             const p = document.querySelector('#before-reading-poll');
@@ -1010,20 +1050,24 @@ class Bot:
             except:
                 try: self.page.locator('input[type="radio"]').first.click()
                 except: pass
-            self.s(0.4)
+            self.s(FAST_STEP_SETTLE_SECONDS if fast else 0.4)
 
             starter = "I agree because" if agree else "I disagree because"
             just = f"{starter} the topic is relevant and connected to the article."
             logger.info(f"  justification: {just[:60]}")
             self.wait_for_editor(timeout=5)
-            self.fill(just); self.s(0.5)
-            self.submit_btn(); self.s(1.5)
+            self.fill(just)
+            self.s(FAST_STEP_SETTLE_SECONDS if fast else 0.5)
+            self.submit_btn()
+            self.s(FAST_STEP_SETTLE_SECONDS if fast else 1.5)
         else:
             ans = "The article was informative and provided useful details."
             logger.info(f"  writing (no poll): {ans[:60]}")
             self.wait_for_editor(timeout=5)
-            self.fill(ans); self.s(0.5)
-            self.submit_btn(); self.s(1.5)
+            self.fill(ans)
+            self.s(FAST_STEP_SETTLE_SECONDS if fast else 0.5)
+            self.submit_btn()
+            self.s(FAST_STEP_SETTLE_SECONDS if fast else 1.5)
 
     # ════════════════════════════════════════════
     # LESSON TYPE A — Article + Activity
@@ -1107,8 +1151,11 @@ class Bot:
             logger.info(f"\n--- {step.split('/')[-1].upper()} ---")
             try:
                 if step == "/lesson/ready":
-                    self._do_poll_and_text("Ready")
-                    self.next_btn(); self.page.wait_for_load_state("networkidle"); self.s(1.5)
+                    self._do_poll_and_text("Ready", fast=True)
+                    if not self.next_btn_fast():
+                        # Keep the existing defensive path if the portal has
+                        # not exposed the next control yet.
+                        self.next_btn(); self.page.wait_for_load_state("networkidle")
 
                 elif step == "/lesson/read":
                     self._read_pages()
@@ -1123,8 +1170,9 @@ class Bot:
                     self.next_btn(); self.page.wait_for_load_state("networkidle"); self.s(1.5)
 
                 elif step == "/lesson/reflect":
-                    self._do_poll_and_text("Reflect")
-                    self.next_btn(); self.page.wait_for_load_state("networkidle"); self.s(1.5)
+                    self._do_poll_and_text("Reflect", fast=True)
+                    if not self.next_btn_fast():
+                        self.next_btn(); self.page.wait_for_load_state("networkidle")
 
                 elif step == "/lesson/write":
                     logger.info("[Write]")
@@ -1137,11 +1185,17 @@ class Bot:
                     self.wait_for_editor(timeout=6)
                     self.fill(resp); self.s(1)
                     done = False
-                    for sel in ["button:has-text('Finish')", "button:has-text('Done')",
-                                "button:has-text('Submit')", "input[value='Submit']"]:
+                    # Submit exactly once.  Finish/Done are supported portal
+                    # labels for the same final control, but no generic
+                    # navigation helper is called afterward.
+                    for sel in ["button:text-is('Submit')", "input[value='Submit']",
+                                "button:text-is('Finish')", "button:text-is('Done')"]:
                         try:
                             l = self.page.locator(sel).first
-                            if l.is_visible(timeout=1200): self.clk(l); done = True; break
+                            if l.is_visible(timeout=1200) and self.clk(l):
+                                logger.info("  Write response submitted once via %s", sel)
+                                done = True
+                                break
                         except: pass
                     if not done: done = self.submit_btn()
                     if not done:
@@ -1150,8 +1204,9 @@ class Bot:
                         break
                     self.page.wait_for_load_state("networkidle"); self.s(1.0)
                     self.handle_info_dialog()
-                    self.next_btn()
-                    self.page.wait_for_load_state("networkidle"); self.s(1.0)
+                    # The outer run loop navigates directly back to
+                    # /my_lessons after this method returns.  Do not click a
+                    # second control here: next_btn() also accepts Submit.
 
             except AIResponseError:
                 raise
