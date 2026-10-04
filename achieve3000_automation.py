@@ -628,6 +628,7 @@ class Bot:
         lesson_number = 0
 
         stalled_passes = 0
+        empty_scans = 0
         for scroll_pass in range(1, 9):
             self.dismiss()
             links = []
@@ -643,6 +644,10 @@ class Bot:
                 "Lesson scan %d/8: %d new links (%d total)",
                 scroll_pass, len(links), len(seen),
             )
+            if links:
+                empty_scans = 0
+            else:
+                empty_scans += 1
 
             for lnk in links:
                 try:
@@ -693,7 +698,14 @@ class Bot:
                 except Exception as e:
                     logger.warning(f"  Link #{lesson_number} error: {e}")
 
+            if empty_scans >= 2:
+                logger.info("No new lesson links in two consecutive grid scans; stopping safely.")
+                break
+
             scroll_result = self.page.evaluate("""() => {
+                const preferred = document.querySelector(
+                    '.MuiDataGrid-virtualScroller, [class*="MuiDataGrid-virtualScroller"]'
+                );
                 const candidates = [...document.querySelectorAll('*')]
                     .filter(el => {
                         const rect = el.getBoundingClientRect();
@@ -705,6 +717,7 @@ class Bot:
                             rect.width > 250 && rect.height > 120 &&
                             rect.bottom > 0 && rect.top < window.innerHeight &&
                             style.display !== 'none' && style.visibility !== 'hidden' &&
+                            el.querySelector('a[href*="/lesson?lid="]') &&
                             (/(auto|scroll)/.test(style.overflowY) ||
                              /(lesson|grid|table|list|dashboard)/i.test(name));
                     })
@@ -716,7 +729,12 @@ class Bot:
                         };
                         return score(b) - score(a);
                     });
-                const container = candidates[0];
+                const container = preferred && preferred.scrollHeight > preferred.clientHeight + 20
+                    ? preferred : candidates[0];
+
+                if (!container) {
+                    return {moved: false, bottom: true, target: 'lesson-grid-not-found'};
+                }
 
                 if (container) {
                     const before = container.scrollTop;
@@ -732,18 +750,6 @@ class Bot:
                     };
                 }
 
-                const scrolling = document.scrollingElement;
-                const before = scrolling.scrollTop;
-                const amount = Math.max(window.innerHeight * 0.55, 400);
-                scrolling.scrollTop = Math.min(
-                    before + amount,
-                    scrolling.scrollHeight - scrolling.clientHeight
-                );
-                return {
-                    moved: scrolling.scrollTop > before,
-                    bottom: scrolling.scrollTop + scrolling.clientHeight >= scrolling.scrollHeight - 5,
-                    target: 'document'
-                };
             }""")
             logger.info("Lesson scroll target=%s moved=%s bottom=%s",
                         scroll_result["target"], scroll_result["moved"], scroll_result["bottom"])
