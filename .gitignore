@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+*.log
+.achieve3000_settings.json
+build/
+dist/
+installer-output/
+Achieve3000-macOS.zip
+*.spec
+playwright-browsers/
+smArt-main/

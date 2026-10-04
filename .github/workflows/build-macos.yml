@@ -1,0 +1,21 @@
+name: Build macOS app
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build app
+        run: bash build_macos.sh
+      - name: Package app
+        run: ditto -c -k --sequesterRsrc --keepParent dist/Achieve3000Launcher Achieve3000-macOS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Achieve3000-macOS
+          path: Achieve3000-macOS.zip
