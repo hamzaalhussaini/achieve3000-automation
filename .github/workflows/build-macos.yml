@@ -13,11 +13,9 @@ jobs:
           python-version: "3.12"
       - name: Build app
         run: bash build_macos.sh
-      - name: Package app
-        run: |
-          cd dist
-          zip -r -q -X ../Achieve3000-macOS.zip Achieve3000Launcher.app
+      - name: Package app as DMG
+        run: hdiutil create -volname "Achieve3000" -srcfolder dist/Achieve3000Launcher.app -ov -format UDZO Achieve3000-macOS.dmg
       - uses: actions/upload-artifact@v4
         with:
           name: Achieve3000-macOS
-          path: Achieve3000-macOS.zip
+          path: Achieve3000-macOS.dmg

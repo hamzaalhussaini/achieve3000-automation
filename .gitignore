@@ -8,7 +8,7 @@ __pycache__/
 build/
 dist/
 installer-output/
-Achieve3000-macOS.zip
+Achieve3000-macOS.dmg
 *.spec
 playwright-browsers/
 smArt-main/
