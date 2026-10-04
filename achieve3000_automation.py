@@ -686,14 +686,29 @@ class Bot:
                     }""", lid)
 
                     logger.info(f"  #{lesson_number} lid={lid} type='{lesson_type}'")
-                    if any(ex.lower() in lesson_type.lower() for ex in EXCLUDED):
-                        logger.info(f"  Skip #{lesson_number}: excluded ({lesson_type})"); continue
-                    if lesson_type == "":
-                        logger.info(f"  Skip #{lesson_number}: unknown type (safety skip)"); continue
+                    normalized_type = " ".join((lesson_type or "").split()).casefold()
+                    if normalized_type not in {"5-step lesson", "article + activity"}:
+                        logger.info(
+                            f"  Skip #{lesson_number}: not an eligible exact type ({lesson_type or 'unknown'})"
+                        )
+                        continue
 
                     label = lnk.inner_text().strip()[:60]
                     logger.info(f"  Clicking #{lesson_number}: '{label}' [{lesson_type}]")
-                    self.clk(lnk); self.page.wait_for_load_state("networkidle"); self.s(2)
+                    if not self.clk(lnk):
+                        logger.error("  Exact lesson link click failed; refusing to continue.")
+                        return False, ""
+                    try:
+                        self.page.wait_for_load_state("networkidle")
+                    except Exception:
+                        pass
+                    self.s(2)
+                    if f"lid={lid}" not in self.page.url:
+                        logger.error(
+                            "  Navigation guard failed: expected lid=%s, landed at %s; refusing this lesson.",
+                            lid, self.page.url,
+                        )
+                        return False, ""
                     return True, lesson_type
                 except Exception as e:
                     logger.warning(f"  Link #{lesson_number} error: {e}")
@@ -972,12 +987,12 @@ class Bot:
             self.submit_btn(); self.s(1.5)
 
     # ════════════════════════════════════════════
-    # LESSON TYPE A — 2-Step Lesson / Article + Activity
+    # LESSON TYPE A — Article + Activity
     #   Flow: READ → MCQ (respond page)
     #   No Ready, no Reflect, no Write
     # ════════════════════════════════════════════
     def lesson_two_step(self):
-        logger.info("=== 2-Step Lesson flow (Article + Activity) ===")
+        logger.info("=== Article + Activity flow ===")
         url = self.page.url
         logger.info(f"  Starting URL: {url}")
 
@@ -1027,7 +1042,7 @@ class Bot:
             if not clicked:
                 logger.info("  No next button — lesson complete."); break
 
-        logger.info("=== 2-Step Lesson complete ===")
+        logger.info("=== Article + Activity complete ===")
         return True
 
     def lesson_article_activity(self):
