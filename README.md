@@ -58,11 +58,11 @@ Push a version tag from the repository. GitHub Actions builds both launchers and
 git add .
 git commit -m "Prepare cross-platform release"
 git push origin master
-git tag v1.0.7
-git push origin v1.0.7
+git tag v1.0.9
+git push origin v1.0.9
 ```
 
-The release contains `Achieve3000Setup-v1.0.7.exe` and `Achieve3000-macOS.dmg`.
+The release contains `Achieve3000Setup-v1.0.9.exe` and `Achieve3000-macOS.dmg`.
 
 ## Configuration
 

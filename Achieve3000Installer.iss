@@ -1,5 +1,5 @@
 #define MyAppName "Achieve3000 Automation"
-#define MyAppVersion "1.0.7"
+#define MyAppVersion "1.0.9"
 #define MyAppPublisher "Achieve3000 Automation"
 #define MyAppExeName "Achieve3000Launcher.exe"
 
@@ -11,7 +11,7 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={localappdata}\Achieve3000 Automation
 DefaultGroupName={#MyAppName}
 OutputDir=installer-output
-OutputBaseFilename=Achieve3000Setup-v1.0.7
+OutputBaseFilename=Achieve3000Setup-v1.0.9
 SetupIconFile=achieve3000.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2

@@ -690,7 +690,7 @@ class Bot:
                     logger.info(f"  #{lesson_number} lid={lid} type='{lesson_type}'")
                     if lesson_type in FORBIDDEN or lesson_type not in ALLOWED:
                         print(
-                            f"🔍 [FILTER CHECK] Detected: '{lesson_type}' -> Status: SKIPPED",
+                            f"[FILTER CHECK] Detected: '{lesson_type}' -> Status: SKIPPED",
                             flush=True,
                         )
                         logger.info(
@@ -699,7 +699,7 @@ class Bot:
                         continue
 
                     print(
-                        f"🔍 [FILTER CHECK] Detected: '{lesson_type}' -> Status: PASSED",
+                        f"[FILTER CHECK] Detected: '{lesson_type}' -> Status: PASSED",
                         flush=True,
                     )
 
