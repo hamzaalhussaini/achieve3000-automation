@@ -2,6 +2,7 @@ import json
 import os, sys, time, logging, re
 from typing import List, Optional
 from urllib.error import HTTPError, URLError
+from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 from playwright.sync_api import sync_playwright, Page
 
@@ -18,7 +19,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("Achieve3000")
 
-EXCLUDED  = ["Article Only", "Video", "Instruction + Activity", "Video Lesson"]
+FORBIDDEN = ["article only", "video", "instruction + activity"]
+ALLOWED = ["5-step lesson", "article + activity"]
 ALL_TYPES = ["2-Step Lesson", "5-Step Lesson", "Article Only", "Video", "Instruction + Activity",
              "Video Lesson", "Article + Activity", "Activity"]
 MAX_AI_FAILURES = 5
@@ -622,26 +624,44 @@ class Bot:
 
     # ── Select lesson → returns (clicked, lesson_type) ──
     def select(self):
-        self.s(2)
+        self.s(5)
         seen_lids: set = set()
         lesson_number = 0
 
         stalled_passes = 0
+        missing_panel_passes = 0
         empty_scans = 0
-        for scroll_pass in range(1, 9):
-            self.dismiss()
+        for scroll_pass in range(1, 161):
+            if self.page.is_closed():
+                logger.error("Lesson page closed while scanning the lesson grid.")
+                return False, ""
+            if scroll_pass == 1:
+                self.dismiss()
             rows = []
-            for row in self.page.locator('[role="row"][data-id], .MuiDataGrid-row[data-id]').all():
+            queued_lids = set()
+            row_locator = self.page.locator(
+                '[role="row"][data-id], .MuiDataGrid-row[data-id]'
+            )
+            rendered_rows = []
+            for render_wait in range(8):
+                try:
+                    rendered_rows = row_locator.all()
+                    if rendered_rows or scroll_pass == 1:
+                        break
+                except Exception:
+                    rendered_rows = []
+                self.s(1.0)
+            for row in rendered_rows:
                 try:
                     lid = (row.get_attribute("data-id") or "").strip()
-                    if lid and lid not in seen_lids:
-                        seen_lids.add(lid)
+                    if lid and lid not in seen_lids and lid not in queued_lids:
+                        queued_lids.add(lid)
                         rows.append(row)
                 except Exception:
                     pass
             logger.info(
-                "Lesson scan %d/8: %d new rows (%d total)",
-                scroll_pass, len(rows), len(seen_lids),
+                "Lesson scan %d/160: %d new rows (%d total seen; %d currently rendered)",
+                scroll_pass, len(rows), len(seen_lids), len(rendered_rows),
             )
             if rows:
                 empty_scans = 0
@@ -658,33 +678,57 @@ class Bot:
                     row_link = row.locator("a[href*='/lesson?lid=']").first
                     if not lid or row_type_cell.count() == 0 or row_link.count() == 0:
                         logger.info("  Skip row: missing exact type cell or lesson link")
+                        if lid:
+                            seen_lids.add(lid)
                         continue
                     # Read both fields from the same rendered row. The grid
                     # virtualizes rows, so page-wide link lists can become
                     # mismatched after scrolling.
-                    lesson_type = " ".join(row_type_cell.inner_text().split())
+                    element = row_type_cell
+                    lesson_type = element.inner_text().strip().lower()
+                    seen_lids.add(lid)
                     logger.info(f"  #{lesson_number} lid={lid} type='{lesson_type}'")
-                    normalized_type = " ".join((lesson_type or "").split()).casefold()
-                    if normalized_type not in {"5-step lesson", "article + activity"}:
+                    if lesson_type in FORBIDDEN or lesson_type not in ALLOWED:
+                        print(
+                            f"🔍 [FILTER CHECK] Detected: '{lesson_type}' -> Status: SKIPPED",
+                            flush=True,
+                        )
                         logger.info(
-                            f"  Skip #{lesson_number}: not an eligible exact type ({lesson_type or 'unknown'})"
+                            f"  Skip #{lesson_number}: forbidden or not an exact allowed type"
                         )
                         continue
 
+                    print(
+                        f"🔍 [FILTER CHECK] Detected: '{lesson_type}' -> Status: PASSED",
+                        flush=True,
+                    )
+
                     label = row_link.inner_text().strip()[:60]
+                    href = row_link.get_attribute("href") or ""
                     logger.info(f"  Clicking #{lesson_number}: '{label}' [{lesson_type}]")
-                    row_link.scroll_into_view_if_needed()
                     if (row.get_attribute("data-id") or "").strip() != lid:
                         logger.error("  Row changed before click; refusing this lesson.")
                         continue
-                    if not self.clk(row_link):
-                        logger.error("  Exact lesson link click failed; refusing to continue.")
+                    try:
+                        # Use the rendered row link while it is visible inside
+                        # the lesson panel. This does not scroll the outer page.
+                        row_link.click(force=True, no_wait_after=True)
+                    except Exception as click_error:
+                        logger.error("  Exact lesson link click failed: %s", click_error)
                         return False, ""
                     try:
                         self.page.wait_for_load_state("networkidle")
                     except Exception:
                         pass
                     self.s(2)
+                    if f"lid={lid}" not in self.page.url and href:
+                        target_url = urljoin(self.page.url, href)
+                        logger.info(
+                            "  Link click stayed on the lesson dashboard; opening exact href: %s",
+                            target_url,
+                        )
+                        self.page.goto(target_url, wait_until="networkidle")
+                        self.s(1)
                     if f"lid={lid}" not in self.page.url:
                         logger.error(
                             "  Navigation guard failed: expected lid=%s, landed at %s; refusing this lesson.",
@@ -700,58 +744,71 @@ class Bot:
                 break
 
             scroll_result = self.page.evaluate("""() => {
-                const preferred = document.querySelector(
-                    '.MuiDataGrid-virtualScroller, [class*="MuiDataGrid-virtualScroller"]'
-                );
-                const candidates = [...document.querySelectorAll('*')]
-                    .filter(el => {
-                        const rect = el.getBoundingClientRect();
-                        const style = getComputedStyle(el);
-                        const name = `${el.id} ${el.className || ''} ${el.getAttribute('data-testid') || ''}`;
-                        return el !== document.body &&
-                            el.scrollHeight > el.clientHeight + 20 &&
-                            el.clientHeight > 120 && el.clientWidth > 250 &&
-                            rect.width > 250 && rect.height > 120 &&
-                            rect.bottom > 0 && rect.top < window.innerHeight &&
-                            style.display !== 'none' && style.visibility !== 'hidden' &&
-                            el.querySelector('a[href*="/lesson?lid="]') &&
-                            (/(auto|scroll)/.test(style.overflowY) ||
-                             /(lesson|grid|table|list|dashboard)/i.test(name));
-                    })
-                    .sort((a, b) => {
-                        const score = el => {
-                            const name = `${el.id} ${el.className || ''} ${el.getAttribute('data-testid') || ''}`;
-                            return (/(lesson|grid|table|list|dashboard)/i.test(name) ? 1000000 : 0) +
-                                el.scrollHeight - el.clientHeight;
-                        };
-                        return score(b) - score(a);
-                    });
-                const container = preferred && preferred.scrollHeight > preferred.clientHeight + 20
-                    ? preferred : candidates[0];
+                const rows = [...document.querySelectorAll(
+                    '[role="row"][data-id], .MuiDataGrid-row[data-id]'
+                )];
+                const row = rows.find(el => el.querySelector('a[href*="/lesson?lid="]'));
+                let container = null;
 
-                if (!container) {
-                    return {moved: false, bottom: true, target: 'lesson-grid-not-found'};
+                // Find the nearest vertically scrollable ancestor of a live lesson row.
+                for (let el = row; el && el !== document.body; el = el.parentElement) {
+                    const style = getComputedStyle(el);
+                    if (el.scrollHeight > el.clientHeight + 20 &&
+                        el.clientHeight > 120 &&
+                        /(auto|scroll)/.test(style.overflowY)) {
+                        container = el;
+                        break;
+                    }
                 }
 
-                if (container) {
-                    const before = container.scrollTop;
-                    const amount = Math.max(container.clientHeight * 0.55, 400);
-                    container.scrollTop = Math.min(
-                        before + amount,
-                        container.scrollHeight - container.clientHeight
+                // Some portal versions mark the grid viewport only by its class.
+                if (!container) {
+                    container = document.querySelector(
+                        '.MuiDataGrid-virtualScroller, [class*="MuiDataGrid-virtualScroller"]'
                     );
+                }
+
+                if (!container) {
                     return {
-                        moved: container.scrollTop > before,
-                        bottom: container.scrollTop + container.clientHeight >= container.scrollHeight - 5,
-                        target: `${container.tagName}.${container.className || ''}`
+                        moved: false,
+                        target: 'lesson-scroll-container-not-found',
+                        renderedRows: rows.length,
+                        before: null,
+                        after: null
                     };
                 }
 
+                const before = container.scrollTop;
+                container.scrollTop = Math.min(
+                    before + 500,
+                    container.scrollHeight - container.clientHeight
+                );
+                const after = container.scrollTop;
+                return {
+                    moved: after > before,
+                    target: `${container.tagName}.${String(container.className || '').toString()}`,
+                    renderedRows: rows.length,
+                    before,
+                    after
+                };
             }""")
-            logger.info("Lesson scroll target=%s moved=%s bottom=%s",
-                        scroll_result["target"], scroll_result["moved"], scroll_result["bottom"])
-            self.s(1.2)
-            if scroll_result["moved"]:
+            # The virtualized grid may briefly unmount every row while it
+            # fetches the next window of lessons after a panel scroll.
+            self.s(3.0)
+            moved = scroll_result["moved"]
+            logger.info(
+                "Lesson scroll target=%s moved=%s before=%s after=%s renderedRows=%s",
+                scroll_result["target"], moved, scroll_result["before"],
+                scroll_result["after"], scroll_result["renderedRows"],
+            )
+            if scroll_result["target"] == "lesson-scroll-container-not-found":
+                missing_panel_passes += 1
+                if missing_panel_passes >= 10:
+                    logger.error("Lesson scroll panel stayed unavailable across 10 scans.")
+                    break
+                continue
+            missing_panel_passes = 0
+            if moved:
                 stalled_passes = 0
             else:
                 stalled_passes += 1
@@ -1108,10 +1165,10 @@ class Bot:
 
     # ── Dispatcher ─────────────────────────────
     def lesson(self, lesson_type: str):
-        lt = lesson_type.lower()
-        if "article + activity" in lt:
+        lt = lesson_type.strip().lower()
+        if lt == "article + activity":
             return self.lesson_two_step()
-        elif "5-step lesson" in lt:
+        elif lt == "5-step lesson":
             return self.lesson_five_step()
         else:
             logger.error(f"Unsupported lesson type '{lesson_type}'; refusing to open it.")

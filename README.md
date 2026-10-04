@@ -41,6 +41,29 @@ powershell -ExecutionPolicy Bypass -File .\build_launcher.ps1
 
 The packaged launcher is created under `dist\Achieve3000Launcher\`.
 
+## Build macOS app
+
+Run the macOS build on a Mac:
+
+```bash
+bash build_macos.sh
+hdiutil create -volname "Achieve3000" -srcfolder dist/Achieve3000Launcher.app -ov -format UDZO Achieve3000-macOS.dmg
+```
+
+## Publish Windows and macOS releases
+
+Push a version tag from the repository. GitHub Actions builds both launchers and attaches them to the release:
+
+```powershell
+git add .
+git commit -m "Prepare cross-platform release"
+git push origin master
+git tag v1.0.6
+git push origin v1.0.6
+```
+
+The release contains `Achieve3000-Windows.zip` and `Achieve3000-macOS.dmg`.
+
 ## Configuration
 
 | Variable | Default | Purpose |

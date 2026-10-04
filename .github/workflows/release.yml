@@ -1,0 +1,58 @@
+name: Build and publish release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build Windows launcher
+        shell: pwsh
+        run: .\build_launcher.ps1
+      - name: Package Windows launcher
+        shell: pwsh
+        run: Compress-Archive -Path .\dist\Achieve3000Launcher\* -DestinationPath .\Achieve3000-Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Achieve3000-Windows
+          path: Achieve3000-Windows.zip
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build macOS launcher
+        run: bash build_macos.sh
+      - name: Package macOS app
+        run: hdiutil create -volname "Achieve3000" -srcfolder dist/Achieve3000Launcher.app -ov -format UDZO Achieve3000-macOS.dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Achieve3000-macOS
+          path: Achieve3000-macOS.dmg
+
+  release:
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
