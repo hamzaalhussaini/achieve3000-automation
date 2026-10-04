@@ -623,68 +623,46 @@ class Bot:
     # ── Select lesson → returns (clicked, lesson_type) ──
     def select(self):
         self.s(2)
-        seen: set = set()
-        processed: set = set()
+        seen_lids: set = set()
         lesson_number = 0
 
         stalled_passes = 0
         empty_scans = 0
         for scroll_pass in range(1, 9):
             self.dismiss()
-            links = []
-            for lnk in self.page.locator("a[href*='/lesson?lid=']").all():
+            rows = []
+            for row in self.page.locator('[role="row"][data-id], .MuiDataGrid-row[data-id]').all():
                 try:
-                    href = lnk.get_attribute("href") or ""
-                    if href and href not in seen:
-                        seen.add(href)
-                        links.append(lnk)
+                    lid = (row.get_attribute("data-id") or "").strip()
+                    if lid and lid not in seen_lids:
+                        seen_lids.add(lid)
+                        rows.append(row)
                 except Exception:
                     pass
             logger.info(
-                "Lesson scan %d/8: %d new links (%d total)",
-                scroll_pass, len(links), len(seen),
+                "Lesson scan %d/8: %d new rows (%d total)",
+                scroll_pass, len(rows), len(seen_lids),
             )
-            if links:
+            if rows:
                 empty_scans = 0
             else:
                 empty_scans += 1
 
-            for lnk in links:
+            for row in rows:
                 try:
-                    href = lnk.get_attribute("href") or ""
-                    if href in processed:
-                        continue
-                    processed.add(href)
+                    lid = (row.get_attribute("data-id") or "").strip()
                     lesson_number += 1
-                    m = re.search(r"lid=(\d+)", href)
-                    lid = m.group(1) if m else ""
-
-                    lesson_type = self.page.evaluate("""(lid) => {
-                        const TYPES = ["2-Step Lesson","5-Step Lesson","Article Only","Video",
-                                       "Instruction + Activity","Video Lesson",
-                                       "Article + Activity","Activity"];
-                        const exactType = document.querySelector(
-                            `[data-testid="lesson-type-${lid}"], #lesson-type-${lid}`
-                        );
-                        if (exactType) return (exactType.innerText || exactType.textContent || '').trim();
-                        const chip = document.querySelector(
-                            '[data-testid="mobile-lesson-chip-type-' + lid + '"]');
-                        if (chip) return chip.getAttribute('aria-label') || chip.innerText || '';
-                        const link = document.querySelector('a[href*="lid=' + lid + '"]');
-                        if (!link) return '';
-                        let node = link;
-                        for (let d = 0; d < 20; d++) {
-                            if (!node.parentElement) break;
-                            node = node.parentElement;
-                            const tag    = node.tagName;
-                            const testid = node.getAttribute('data-testid') || '';
-                            const role   = node.getAttribute('role') || '';
-                            const txt = (node.innerText || '').replace(/\\s+/g, ' ');
-                            for (const t of TYPES) { if (txt.includes(t)) return t; }
-                        }
-                        return '';
-                    }""", lid)
-
+                    row_type_cell = row.locator(
+                        f'[data-testid="lesson-type-{lid}"], #lesson-type-{lid}'
+                    ).first
+                    row_link = row.locator("a[href*='/lesson?lid=']").first
+                    if not lid or row_type_cell.count() == 0 or row_link.count() == 0:
+                        logger.info("  Skip row: missing exact type cell or lesson link")
+                        continue
+                    # Read both fields from the same rendered row. The grid
+                    # virtualizes rows, so page-wide link lists can become
+                    # mismatched after scrolling.
+                    lesson_type = " ".join(row_type_cell.inner_text().split())
                     logger.info(f"  #{lesson_number} lid={lid} type='{lesson_type}'")
                     normalized_type = " ".join((lesson_type or "").split()).casefold()
                     if normalized_type not in {"5-step lesson", "article + activity"}:
@@ -693,9 +671,13 @@ class Bot:
                         )
                         continue
 
-                    label = lnk.inner_text().strip()[:60]
+                    label = row_link.inner_text().strip()[:60]
                     logger.info(f"  Clicking #{lesson_number}: '{label}' [{lesson_type}]")
-                    if not self.clk(lnk):
+                    row_link.scroll_into_view_if_needed()
+                    if (row.get_attribute("data-id") or "").strip() != lid:
+                        logger.error("  Row changed before click; refusing this lesson.")
+                        continue
+                    if not self.clk(row_link):
                         logger.error("  Exact lesson link click failed; refusing to continue.")
                         return False, ""
                     try:
@@ -1127,13 +1109,13 @@ class Bot:
     # ── Dispatcher ─────────────────────────────
     def lesson(self, lesson_type: str):
         lt = lesson_type.lower()
-        if "2-step" in lt or "article + activity" in lt or lt == "activity":
+        if "article + activity" in lt:
             return self.lesson_two_step()
-        elif "5-step" in lt:
+        elif "5-step lesson" in lt:
             return self.lesson_five_step()
         else:
-            logger.info(f"Unknown type '{lesson_type}' — using 5-step fallback.")
-            return self.lesson_five_step()
+            logger.error(f"Unsupported lesson type '{lesson_type}'; refusing to open it.")
+            return False
 
     # ── Main loop ──────────────────────────────
     def run(self):
