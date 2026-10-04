@@ -28,7 +28,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Achieve3000-Windows
-          path: installer-output/Achieve3000Setup-v1.0.9.exe
+          path: installer-output/Achieve3000Setup-v1.0.10.exe
 
   macos:
     runs-on: macos-latest
