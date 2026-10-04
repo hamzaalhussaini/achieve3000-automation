@@ -663,6 +663,10 @@ class Bot:
                         const TYPES = ["2-Step Lesson","5-Step Lesson","Article Only","Video",
                                        "Instruction + Activity","Video Lesson",
                                        "Article + Activity","Activity"];
+                        const exactType = document.querySelector(
+                            `[data-testid="lesson-type-${lid}"], #lesson-type-${lid}`
+                        );
+                        if (exactType) return (exactType.innerText || exactType.textContent || '').trim();
                         const chip = document.querySelector(
                             '[data-testid="mobile-lesson-chip-type-' + lid + '"]');
                         if (chip) return chip.getAttribute('aria-label') || chip.innerText || '';
@@ -675,12 +679,8 @@ class Bot:
                             const tag    = node.tagName;
                             const testid = node.getAttribute('data-testid') || '';
                             const role   = node.getAttribute('role') || '';
-                            if (tag==='TR'||tag==='LI'||role==='row'||
-                                testid.includes('card-container')||testid.includes('lesson-row')) {
-                                const txt = node.innerText || '';
-                                for (const t of TYPES) { if (txt.includes(t)) return t; }
-                                return '';
-                            }
+                            const txt = (node.innerText || '').replace(/\\s+/g, ' ');
+                            for (const t of TYPES) { if (txt.includes(t)) return t; }
                         }
                         return '';
                     }""", lid)
