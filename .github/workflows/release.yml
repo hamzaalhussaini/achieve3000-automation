@@ -19,13 +19,15 @@ jobs:
       - name: Build Windows launcher
         shell: pwsh
         run: .\build_launcher.ps1
-      - name: Package Windows launcher
+      - name: Install Inno Setup
+        uses: ilammy/setup-inno-setup@v2
+      - name: Build Windows installer
         shell: pwsh
-        run: Compress-Archive -Path .\dist\Achieve3000Launcher\* -DestinationPath .\Achieve3000-Windows.zip
+        run: iscc .\Achieve3000Installer.iss
       - uses: actions/upload-artifact@v4
         with:
           name: Achieve3000-Windows
-          path: Achieve3000-Windows.zip
+          path: installer-output/Achieve3000Setup-v1.0.7.exe
 
   macos:
     runs-on: macos-latest

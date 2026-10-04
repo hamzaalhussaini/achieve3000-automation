@@ -1,10 +1,13 @@
 $ErrorActionPreference = "Stop"
 
-python -m pip install pyinstaller
+python -m pip install -r requirements.txt pyinstaller
+if ($LASTEXITCODE -ne 0) { throw "Python dependency installation failed." }
 
 $browser_dir = Join-Path (Get-Location) "playwright-browsers"
 $env:PLAYWRIGHT_BROWSERS_PATH = $browser_dir
 python -m playwright install chromium
+if ($LASTEXITCODE -ne 0) { throw "Playwright Chromium installation failed." }
+if (-not (Test-Path $browser_dir)) { throw "Playwright browser directory was not created." }
 
 if (Test-Path build) { Remove-Item -Recurse -Force build }
 if (Test-Path dist) { Remove-Item -Recurse -Force dist }
