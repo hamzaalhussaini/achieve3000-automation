@@ -20,10 +20,11 @@ jobs:
         shell: pwsh
         run: .\build_launcher.ps1
       - name: Install Inno Setup
-        uses: ilammy/setup-inno-setup@v2
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
       - name: Build Windows installer
         shell: pwsh
-        run: iscc .\Achieve3000Installer.iss
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" ".\Achieve3000Installer.iss"'
       - uses: actions/upload-artifact@v4
         with:
           name: Achieve3000-Windows
