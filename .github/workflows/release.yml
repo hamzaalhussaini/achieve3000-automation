@@ -28,7 +28,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Achieve3000-Windows
-          path: installer-output/Achieve3000Setup-v1.0.10.exe
+          path: installer-output/Achieve3000Setup-v1.0.11.exe
 
   macos:
     runs-on: macos-latest
@@ -40,7 +40,7 @@ jobs:
       - name: Build macOS launcher
         run: bash build_macos.sh
       - name: Package macOS app
-        run: hdiutil create -volname "Achieve3000" -srcfolder dist/Achieve3000Launcher.app -ov -format UDZO Achieve3000-macOS.dmg
+        run: bash package_macos_dmg.sh
       - uses: actions/upload-artifact@v4
         with:
           name: Achieve3000-macOS
