@@ -62,7 +62,18 @@ git tag v1.0.9
 git push origin v1.0.9
 ```
 
-The release contains `Achieve3000Setup-v1.0.9.exe` and `Achieve3000-macOS.dmg`.
+The release contains `Achieve3000Setup-v*.exe` and `Achieve3000-macOS.dmg`.
+
+### macOS Installation & Gatekeeper Note
+
+Because the app is open-source and not signed with an expensive Apple Developer ID certificate, macOS Gatekeeper may show:
+`"Achieve3000Launcher is damaged and can't be opened. You should move it to the Trash."`
+
+To install cleanly:
+1. Open the `.dmg` and drag **Achieve3000Launcher** to **Applications**.
+2. **Double-click `Fix Damaged App.command`** inside the DMG to unquarantine and launch the app immediately.
+   *(Or in macOS Terminal run: `xattr -cr /Applications/Achieve3000Launcher.app`)*
+3. Alternatively, right-click (Control-click) `Achieve3000Launcher.app` in `/Applications` and select **Open**.
 
 ## Configuration
 

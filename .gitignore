@@ -10,5 +10,9 @@ dist/
 installer-output/
 Achieve3000-macOS.dmg
 *.spec
+!Achieve3000Launcher.spec
 playwright-browsers/
 smArt-main/
+_artifact_check/
+*.zip
+

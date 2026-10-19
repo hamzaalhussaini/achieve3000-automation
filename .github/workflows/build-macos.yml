@@ -2,6 +2,13 @@ name: Build macOS app
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "launcher.py"
+      - "build_macos.sh"
+      - "package_macos_dmg.sh"
+      - "Achieve3000Launcher.spec"
+      - ".github/workflows/build-macos.yml"
 
 jobs:
   build:
@@ -11,8 +18,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Run unit & compatibility tests
+        run: |
+          pip install -r requirements.txt
+          python -m unittest test_macos_simulation.py
       - name: Build app
         run: bash build_macos.sh
+      - name: Verify app bundle integrity
+        run: |
+          test -x "dist/Achieve3000Launcher.app/Contents/MacOS/Achieve3000Launcher"
+          test -x "dist/Achieve3000Launcher.app/Contents/MacOS/achieve3000_automation"
+          test -d "dist/Achieve3000Launcher.app/Contents/Resources/playwright-browsers"
+          echo "Bundle structure and permissions verified successfully."
       - name: Package app as DMG
         run: bash package_macos_dmg.sh
       - uses: actions/upload-artifact@v4
