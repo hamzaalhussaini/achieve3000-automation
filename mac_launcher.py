@@ -844,6 +844,10 @@ HTML_PAGE = """<!DOCTYPE html>
 
 
 class LauncherHTTPHandler(BaseHTTPRequestHandler):
+    def address_string(self):
+        # Crucial for macOS: prevent socket.getfqdn from doing reverse DNS lookup which causes 10-30s hangs
+        return self.client_address[0]
+
     def log_message(self, format, *args):
         pass  # Suppress console HTTP access logs
 

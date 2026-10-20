@@ -560,7 +560,7 @@ def main():
             mac_launcher.main()
             return
         except Exception:
-            pass
+            log_crash(*sys.exc_info())
 
     try:
         app = AutomationLauncher()
