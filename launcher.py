@@ -1,5 +1,6 @@
 import json
 import os
+os.environ.setdefault("TK_SILENCE_DEPRECATION", "1")
 import queue
 import subprocess
 import sys
@@ -146,10 +147,10 @@ class AutomationLauncher(tk.Tk):
         self.after(100, self._drain_output)
         self.protocol("WM_DELETE_WINDOW", self._close)
 
-        # Force initial layout and flush Darwin/Cocoa drawing queue
+        # Force initial layout and schedule Darwin/Cocoa expose refresh
         self.update_idletasks()
         if IS_MAC:
-            self._darwin_window_refresh()
+            self.after(100, self._darwin_window_refresh)
 
     def _load_icon(self):
         """Safely load application icon without crashing on macOS."""
@@ -162,18 +163,14 @@ class AutomationLauncher(tk.Tk):
                 pass
 
     def _darwin_window_refresh(self):
-        """Fix blank window rendering quirk on macOS Cocoa/Aqua."""
+        """Fix blank window rendering quirk on macOS Cocoa by triggering an expose event."""
         try:
             self.lift()
-            self.attributes("-topmost", True)
-            self.after(60, lambda: self._remove_topmost())
-        except Exception:
-            pass
-        self.update()
-
-    def _remove_topmost(self):
-        try:
-            self.attributes("-topmost", False)
+            w = self.winfo_width()
+            h = self.winfo_height()
+            self.geometry(f"{w + 1}x{h}")
+            self.update_idletasks()
+            self.geometry(f"{w}x{h}")
         except Exception:
             pass
 
@@ -182,6 +179,8 @@ class AutomationLauncher(tk.Tk):
         available_themes = style.theme_names()
         if "clam" in available_themes:
             style.theme_use("clam")
+        elif "default" in available_themes:
+            style.theme_use("default")
 
         style.configure("TFrame", background=BG)
         style.configure("Card.TFrame", background=CARD)
@@ -555,6 +554,14 @@ class AutomationLauncher(tk.Tk):
 
 
 def main():
+    if IS_MAC:
+        try:
+            import mac_launcher
+            mac_launcher.main()
+            return
+        except Exception:
+            pass
+
     try:
         app = AutomationLauncher()
         app.mainloop()

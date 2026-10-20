@@ -15,6 +15,13 @@ mkdir -p "$DMG_ROOT"
 ditto "$APP_SOURCE" "$DMG_ROOT/Achieve3000Launcher.app"
 ln -s /Applications "$DMG_ROOT/Applications"
 
+# Set custom volume icon on the DMG root so the disk doesn't show generic/Python icon
+if [ -f "achieve3000.icns" ]; then
+    cp "achieve3000.icns" "$DMG_ROOT/.VolumeIcon.icns"
+    SetFile -c icnC "$DMG_ROOT/.VolumeIcon.icns" 2>/dev/null || true
+    SetFile -a C "$DMG_ROOT" 2>/dev/null || true
+fi
+
 APP_PATH="$DMG_ROOT/Achieve3000Launcher.app"
 
 # Strip quarantine / extended attributes from build environment

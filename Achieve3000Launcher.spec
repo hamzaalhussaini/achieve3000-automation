@@ -6,6 +6,12 @@ import sys
 datas = []
 if os.path.exists('achieve3000.ico'):
     datas.append(('achieve3000.ico', '.'))
+if os.path.exists('achieve3000.png'):
+    datas.append(('achieve3000.png', '.'))
+if os.path.exists('achieve3000.icns'):
+    datas.append(('achieve3000.icns', '.'))
+if os.path.exists('mac_launcher.py'):
+    datas.append(('mac_launcher.py', '.'))
 
 # Select native platform icon
 icon_target = None
@@ -19,7 +25,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=datas,
-    hiddenimports=[],
+    hiddenimports=['mac_launcher'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -62,7 +68,7 @@ if sys.platform == 'darwin':
     app = BUNDLE(
         coll,
         name='Achieve3000Launcher.app',
-        icon=icon_target,
+        icon='achieve3000.icns' if os.path.exists('achieve3000.icns') else None,
         bundle_identifier='com.achieve3000.launcher',
         info_plist={
             'CFBundleName': 'Achieve3000 Launcher',

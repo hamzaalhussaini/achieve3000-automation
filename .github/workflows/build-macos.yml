@@ -5,10 +5,13 @@ on:
   push:
     paths:
       - "launcher.py"
+      - "mac_launcher.py"
       - "build_macos.sh"
       - "package_macos_dmg.sh"
       - "Achieve3000Launcher.spec"
       - ".github/workflows/build-macos.yml"
+      - "achieve3000.icns"
+      - "achieve3000.png"
 
 jobs:
   build:
@@ -29,7 +32,7 @@ jobs:
           test -x "dist/Achieve3000Launcher.app/Contents/MacOS/Achieve3000Launcher"
           test -x "dist/Achieve3000Launcher.app/Contents/MacOS/achieve3000_automation"
           test -d "dist/Achieve3000Launcher.app/Contents/Resources/playwright-browsers"
-          echo "Bundle structure and permissions verified successfully."
+          echo "Bundle structure, permissions, and icons verified successfully."
       - name: Package app as DMG
         run: bash package_macos_dmg.sh
       - uses: actions/upload-artifact@v4
