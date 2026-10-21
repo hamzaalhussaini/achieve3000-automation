@@ -2,8 +2,8 @@
 """
 Achieve3000 Modern Mac Launcher
 A robust, native-feeling launcher designed specifically for macOS.
-Features live metrics, terminal log colorization, sound/desktop notifications,
-and seamless execution in both frozen bundles and development mode.
+Features auto-saving credentials, live metrics, terminal log colorization,
+sound/desktop notifications, and seamless execution in both frozen bundles and development mode.
 """
 
 import os
@@ -23,14 +23,31 @@ from urllib.parse import urlparse, parse_qs
 # Base paths
 ROOT_DIR = Path(__file__).resolve().parent
 ENV_FILE = ROOT_DIR / ".env"
-SETTINGS_DIR = Path.home() / "Library" / "Application Support" / "Achieve3000"
-SETTINGS_FILE = SETTINGS_DIR / "settings.json"
 ICON_PNG = ROOT_DIR / "achieve3000.png"
 
-try:
-    SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
-except Exception:
-    SETTINGS_FILE = ROOT_DIR / "settings.json"
+
+def get_settings_file() -> Path:
+    """Return an OS-safe writable path for persisting user credentials."""
+    # 1. Primary standard macOS Application Support directory
+    app_support = Path.home() / "Library" / "Application Support" / "Achieve3000"
+    try:
+        app_support.mkdir(parents=True, exist_ok=True)
+        return app_support / "settings.json"
+    except Exception:
+        pass
+
+    # 2. Secondary user home directory fallback
+    home_dir = Path.home() / ".achieve3000"
+    try:
+        home_dir.mkdir(parents=True, exist_ok=True)
+        return home_dir / "settings.json"
+    except Exception:
+        pass
+
+    return Path.home() / ".achieve3000_settings.json"
+
+
+SETTINGS_FILE = get_settings_file()
 
 
 def send_mac_notification(title: str, message: str):
@@ -65,8 +82,36 @@ class AutomationManager:
             "lessons": 40,
             "headless": False
         }
-        # 1. Check .env
-        if ENV_FILE.exists():
+
+        # 1. Check primary persistent settings.json
+        target = get_settings_file()
+        if target.exists():
+            try:
+                saved = json.loads(target.read_text(encoding="utf-8"))
+                for k in data:
+                    if k in saved and saved[k] is not None:
+                        data[k] = saved[k]
+            except Exception:
+                pass
+
+        # 2. Check alternative user locations if fields are still empty
+        alt_locations = [
+            Path.home() / ".achieve3000" / "settings.json",
+            Path.home() / ".achieve3000_settings.json",
+            ROOT_DIR / ".achieve3000_settings.json",
+        ]
+        for alt in alt_locations:
+            if not data["username"] and alt.exists():
+                try:
+                    saved = json.loads(alt.read_text(encoding="utf-8"))
+                    for k in data:
+                        if k in saved and saved[k] is not None and not data[k]:
+                            data[k] = saved[k]
+                except Exception:
+                    pass
+
+        # 3. Fallback to .env file if available
+        if not data["groq_api_key"] and not data["username"] and ENV_FILE.exists():
             try:
                 for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
                     line = line.strip()
@@ -74,35 +119,38 @@ class AutomationManager:
                         continue
                     k, v = line.split("=", 1)
                     k, v = k.strip(), v.strip().strip('"').strip("'")
-                    if k == "GROQ_API_KEY":
+                    if k == "GROQ_API_KEY" and not data["groq_api_key"]:
                         data["groq_api_key"] = v
-                    elif k == "ACHIEVE3000_USERNAME":
+                    elif k == "ACHIEVE3000_USERNAME" and not data["username"]:
                         data["username"] = v
-                    elif k == "ACHIEVE3000_PASSWORD":
+                    elif k == "ACHIEVE3000_PASSWORD" and not data["password"]:
                         data["password"] = v
-                    elif k == "ITERATIONS" and v.isdigit():
+                    elif k == "ITERATIONS" and v.isdigit() and data["lessons"] == 40:
                         data["lessons"] = int(v)
-                    elif k == "HEADLESS":
+                    elif k == "HEADLESS" and not data["headless"]:
                         data["headless"] = v.lower() in ("true", "1", "yes")
             except Exception:
                 pass
 
-        # 2. Check settings.json
-        if SETTINGS_FILE.exists():
-            try:
-                saved = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
-                for k in data:
-                    if k in saved and saved[k] is not None:
-                        data[k] = saved[k]
-            except Exception:
-                pass
         return data
 
     def save_settings(self, data):
         try:
-            SETTINGS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            target = get_settings_file()
+            target.parent.mkdir(parents=True, exist_ok=True)
+            to_save = {
+                "groq_api_key": str(data.get("groq_api_key", "")).strip(),
+                "username": str(data.get("username", "")).strip(),
+                "password": str(data.get("password", "")),
+                "lessons": int(data.get("lessons", 40)),
+                "headless": bool(data.get("headless", False)),
+            }
+            tmp = target.with_suffix(".tmp")
+            tmp.write_text(json.dumps(to_save, indent=2), encoding="utf-8")
+            tmp.replace(target)
+            return True
         except Exception:
-            pass
+            return False
 
     def add_log(self, text):
         with self.lock:
@@ -118,7 +166,6 @@ class AutomationManager:
 
     def _resolve_command(self):
         """Find executable in bundled .app or fallback to python script."""
-        # Check bundled Mach-O binary
         exe_candidates = [
             ROOT_DIR / "achieve3000_automation",
             ROOT_DIR.parent / "MacOS" / "achieve3000_automation",
@@ -131,7 +178,6 @@ class AutomationManager:
                     pass
                 return [str(exe)]
 
-        # Check script source
         script_candidates = [
             ROOT_DIR / "achieve3000_automation.py",
             ROOT_DIR.parent / "Resources" / "achieve3000_automation.py",
@@ -388,12 +434,23 @@ HTML_PAGE = """<!DOCTYPE html>
     gap: 14px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
   .card-title {
     font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--accent);
+  }
+  .save-status {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--success);
+    transition: color 0.2s;
   }
   .form-grid {
     display: grid;
@@ -610,25 +667,28 @@ HTML_PAGE = """<!DOCTYPE html>
   </div>
 
   <div class="card">
-    <div class="card-title">Credentials & Settings</div>
+    <div class="card-header">
+      <div class="card-title">Credentials & Settings</div>
+      <span id="saveStatus" class="save-status">Auto-saved ✓</span>
+    </div>
     <div class="form-grid">
       <label for="groq_key">Groq API Key</label>
-      <input type="password" id="groq_key" placeholder="gsk_..." autocomplete="off">
+      <input type="password" id="groq_key" placeholder="gsk_..." autocomplete="off" oninput="scheduleAutoSave()">
 
       <label for="username">Achieve3000 Username</label>
-      <input type="text" id="username" placeholder="Student username" autocomplete="off">
+      <input type="text" id="username" placeholder="Student username" autocomplete="off" oninput="scheduleAutoSave()">
 
       <label for="password">Achieve3000 Password</label>
-      <input type="password" id="password" placeholder="••••••••" autocomplete="off">
+      <input type="password" id="password" placeholder="••••••••" autocomplete="off" oninput="scheduleAutoSave()">
 
       <label for="lessons">Lesson Iterations</label>
-      <input type="number" id="lessons" value="40" min="1" max="9999" onchange="updateTarget()">
+      <input type="number" id="lessons" value="40" min="1" max="9999" oninput="scheduleAutoSave(); updateTarget()">
       <div class="field-desc">Configures how many lessons to complete before stopping.</div>
 
       <label>Headless Mode</label>
       <div class="toggle-wrap">
         <label class="switch">
-          <input type="checkbox" id="headless">
+          <input type="checkbox" id="headless" onchange="scheduleAutoSave()">
           <span class="slider"></span>
         </label>
         <span style="font-size: 12px; color: var(--text-muted);">Run Chromium in background without opening browser window</span>
@@ -667,19 +727,55 @@ HTML_PAGE = """<!DOCTYPE html>
   let logOffset = 0;
   let startTime = null;
   let timerInterval = null;
+  let autoSaveTimeout = null;
 
   async function loadSettings() {
     try {
       const res = await fetch('/api/settings');
       const data = await res.json();
-      document.getElementById('groq_key').value = data.groq_api_key || '';
-      document.getElementById('username').value = data.username || '';
-      document.getElementById('password').value = data.password || '';
-      document.getElementById('lessons').value = data.lessons || 40;
+      if (data.groq_api_key) document.getElementById('groq_key').value = data.groq_api_key;
+      if (data.username) document.getElementById('username').value = data.username;
+      if (data.password) document.getElementById('password').value = data.password;
+      if (data.lessons) document.getElementById('lessons').value = data.lessons;
       document.getElementById('headless').checked = !!data.headless;
       updateTarget();
+      setSaveStatus("Loaded ✓", "#34d399");
     } catch(e) {
       console.error(e);
+      setSaveStatus("Offline", "#fb7185");
+    }
+  }
+
+  function setSaveStatus(text, color) {
+    const el = document.getElementById('saveStatus');
+    if (el) {
+      el.textContent = text;
+      el.style.color = color;
+    }
+  }
+
+  function scheduleAutoSave() {
+    setSaveStatus("Saving...", "#38bdf8");
+    if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+    autoSaveTimeout = setTimeout(persistSettingsToServer, 400);
+  }
+
+  async function persistSettingsToServer() {
+    const config = getFormConfig();
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSaveStatus("Saved ✓", "#34d399");
+      } else {
+        setSaveStatus("Save error", "#fb7185");
+      }
+    } catch(e) {
+      setSaveStatus("Save error", "#fb7185");
     }
   }
 
@@ -707,6 +803,9 @@ HTML_PAGE = """<!DOCTYPE html>
       alert("Please enter your Achieve3000 credentials.");
       return;
     }
+
+    // Persist immediately on start
+    persistSettingsToServer();
 
     document.getElementById('startBtn').disabled = true;
     document.getElementById('stopBtn').disabled = false;
@@ -774,6 +873,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
   async function quitApp() {
     if (confirm("Quit Achieve3000 Runner?")) {
+      await persistSettingsToServer();
       await fetch('/api/quit', { method: 'POST' });
       window.close();
     }
@@ -837,6 +937,10 @@ HTML_PAGE = """<!DOCTYPE html>
     loadSettings();
     pollStatus();
   });
+
+  window.addEventListener('beforeunload', () => {
+    navigator.sendBeacon('/api/settings', JSON.stringify(getFormConfig()));
+  });
 </script>
 </body>
 </html>
@@ -856,6 +960,7 @@ class LauncherHTTPHandler(BaseHTTPRequestHandler):
         if parsed.path == "/" or parsed.path == "/index.html":
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
             self.end_headers()
             self.wfile.write(HTML_PAGE.encode("utf-8"))
         elif parsed.path == "/icon.png":
@@ -901,7 +1006,10 @@ class LauncherHTTPHandler(BaseHTTPRequestHandler):
         except Exception:
             payload = {}
 
-        if parsed.path == "/api/start":
+        if parsed.path == "/api/settings":
+            ok = manager.save_settings(payload)
+            self.send_json({"ok": ok, "message": "Settings saved"})
+        elif parsed.path == "/api/start":
             ok, msg = manager.start(payload)
             self.send_json({"ok": ok, "message": msg})
         elif parsed.path == "/api/stop":
@@ -918,7 +1026,8 @@ class LauncherHTTPHandler(BaseHTTPRequestHandler):
     def send_json(self, data):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(json.dumps(data).encode("utf-8"))
 
