@@ -147,7 +147,11 @@ class AutomationManager:
             }
             tmp = target.with_suffix(".tmp")
             tmp.write_text(json.dumps(to_save, indent=2), encoding="utf-8")
+            if sys.platform == "darwin":
+                os.chmod(tmp, 0o600)
             tmp.replace(target)
+            if sys.platform == "darwin":
+                os.chmod(target, 0o600)
             return True
         except Exception:
             return False
@@ -318,40 +322,40 @@ HTML_PAGE = """<!DOCTYPE html>
 <link rel="icon" type="image/png" href="/icon.png">
 <style>
   :root {
-    --bg: #090e17;
-    --card: #111a2e;
-    --card-border: #1e293b;
-    --input-bg: #0b1220;
-    --text: #f8fafc;
-    --text-muted: #94a3b8;
-    --accent: #38bdf8;
-    --accent-hover: #0ea5e9;
-    --accent-glow: rgba(56, 189, 248, 0.25);
-    --stop: #f43f5e;
-    --stop-hover: #e11d48;
-    --terminal-bg: #050811;
-    --success: #34d399;
+    --bg: #090f1d;
+    --card: #121d31;
+    --card-border: #263650;
+    --input-bg: #0b1527;
+    --text: #f2f6fc;
+    --text-muted: #9aaac0;
+    --accent: #63d2c6;
+    --accent-hover: #46bfb4;
+    --accent-glow: rgba(99, 210, 198, 0.2);
+    --stop: #e45d72;
+    --stop-hover: #cf4058;
+    --terminal-bg: #070c16;
+    --success: #58d6a4;
     --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
     --mono: "SF Mono", Menlo, Consolas, Monaco, monospace;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    background: var(--bg);
+    background: radial-gradient(ellipse at 50% -18%, #1b3150 0, var(--bg) 56%);
     color: var(--text);
     font-family: var(--font);
     display: flex;
     justify-content: center;
-    padding: 22px;
+    padding: 30px 24px;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     user-select: none;
   }
   .container {
     width: 100%;
-    max-width: 780px;
+    max-width: 900px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 18px;
   }
   header {
     display: flex;
@@ -365,13 +369,13 @@ HTML_PAGE = """<!DOCTYPE html>
     gap: 14px;
   }
   .brand-logo {
-    width: 38px;
-    height: 38px;
-    border-radius: 9px;
-    box-shadow: 0 4px 14px rgba(56, 189, 248, 0.2);
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    box-shadow: 0 5px 18px rgba(99, 210, 198, 0.22);
   }
   h1 {
-    font-size: 22px;
+    font-size: 24px;
     font-weight: 700;
     letter-spacing: -0.02em;
     color: #fff;
@@ -404,8 +408,8 @@ HTML_PAGE = """<!DOCTYPE html>
   .stat-card {
     background: var(--card);
     border: 1px solid var(--card-border);
-    border-radius: 10px;
-    padding: 10px 14px;
+    border-radius: 12px;
+    padding: 13px 16px;
     display: flex;
     flex-direction: column;
     gap: 3px;
@@ -418,7 +422,7 @@ HTML_PAGE = """<!DOCTYPE html>
     letter-spacing: 0.04em;
   }
   .stat-val {
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 700;
     color: #fff;
     font-family: var(--mono);
@@ -427,12 +431,12 @@ HTML_PAGE = """<!DOCTYPE html>
   .card {
     background: var(--card);
     border: 1px solid var(--card-border);
-    border-radius: 12px;
-    padding: 18px;
+    border-radius: 16px;
+    padding: 21px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    gap: 16px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
   }
   .card-header {
     display: flex;
@@ -454,8 +458,8 @@ HTML_PAGE = """<!DOCTYPE html>
   }
   .form-grid {
     display: grid;
-    grid-template-columns: 170px 1fr;
-    gap: 12px 18px;
+    grid-template-columns: 185px 1fr;
+    gap: 14px 20px;
     align-items: center;
   }
   label {
@@ -467,9 +471,9 @@ HTML_PAGE = """<!DOCTYPE html>
     width: 100%;
     background: var(--input-bg);
     border: 1px solid var(--card-border);
-    border-radius: 8px;
-    padding: 9px 13px;
-    font-size: 13px;
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-size: 14px;
     color: #fff;
     font-family: var(--font);
     outline: none;
@@ -522,8 +526,8 @@ HTML_PAGE = """<!DOCTYPE html>
     font-family: var(--font);
     font-size: 13px;
     font-weight: 600;
-    padding: 10px 22px;
-    border-radius: 8px;
+    padding: 11px 22px;
+    border-radius: 10px;
     border: none;
     cursor: pointer;
     display: inline-flex;
@@ -533,8 +537,8 @@ HTML_PAGE = """<!DOCTYPE html>
   }
   .btn-start {
     background: var(--accent);
-    color: #082f49;
-    box-shadow: 0 4px 14px rgba(56, 189, 248, 0.25);
+    color: #092321;
+    box-shadow: 0 5px 15px rgba(99, 210, 198, 0.2);
   }
   .btn-start:hover:not(:disabled) {
     background: var(--accent-hover);
@@ -631,6 +635,15 @@ HTML_PAGE = """<!DOCTYPE html>
   .log-err { color: #fb7185; font-weight: 600; }
   .log-ok  { color: #34d399; }
   .log-dim { color: #64748b; }
+  @media (max-width: 620px) {
+    body { padding: 18px 12px; }
+    .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .form-grid { grid-template-columns: 1fr; gap: 8px; }
+    .field-desc { grid-column: 1; margin: -4px 0 4px; }
+    .actions { flex-wrap: wrap; }
+    .status-text { width: 100%; margin: 4px 0 0; }
+    .terminal-wrap { height: 260px; }
+  }
 </style>
 </head>
 <body>
@@ -948,6 +961,18 @@ HTML_PAGE = """<!DOCTYPE html>
 
 
 class LauncherHTTPHandler(BaseHTTPRequestHandler):
+    def _is_local_host(self):
+        host = (self.headers.get("Host") or "").split(":", 1)[0].strip("[]").lower()
+        return host in {"127.0.0.1", "localhost", "::1"}
+
+    def _deny_nonlocal_host(self):
+        if self._is_local_host():
+            return False
+        self.send_response(403)
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        return True
+
     def address_string(self):
         # Crucial for macOS: prevent socket.getfqdn from doing reverse DNS lookup which causes 10-30s hangs
         return self.client_address[0]
@@ -956,6 +981,8 @@ class LauncherHTTPHandler(BaseHTTPRequestHandler):
         pass  # Suppress console HTTP access logs
 
     def do_GET(self):
+        if self._deny_nonlocal_host():
+            return
         parsed = urlparse(self.path)
         if parsed.path == "/" or parsed.path == "/index.html":
             self.send_response(200)
@@ -998,13 +1025,23 @@ class LauncherHTTPHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
+        if self._deny_nonlocal_host():
+            return
         parsed = urlparse(self.path)
         content_len = int(self.headers.get("Content-Length", 0))
+        if content_len < 0 or content_len > 65536:
+            self.send_response(413)
+            self.end_headers()
+            return
         body = self.rfile.read(content_len).decode("utf-8") if content_len > 0 else "{}"
         try:
             payload = json.loads(body)
         except Exception:
             payload = {}
+        if not isinstance(payload, dict):
+            self.send_response(400)
+            self.end_headers()
+            return
 
         if parsed.path == "/api/settings":
             ok = manager.save_settings(payload)
@@ -1027,7 +1064,6 @@ class LauncherHTTPHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(json.dumps(data).encode("utf-8"))
 

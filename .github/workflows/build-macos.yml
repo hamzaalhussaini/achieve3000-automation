@@ -6,6 +6,10 @@ on:
     paths:
       - "launcher.py"
       - "mac_launcher.py"
+      - "achieve3000_automation.py"
+      - "requirements.txt"
+      - "test_macos_simulation.py"
+      - "build_launcher.ps1"
       - "build_macos.sh"
       - "package_macos_dmg.sh"
       - "Achieve3000Launcher.spec"

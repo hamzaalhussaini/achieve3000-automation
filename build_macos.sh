@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT_DIR"
 
+python3 -m pip install --upgrade "pip>=26.2.2"
 python3 -m pip install -r requirements.txt pyinstaller pillow
 
 # Ensure ICNS icon is ready
@@ -25,6 +26,7 @@ rm -rf build dist
 
 # Build automation worker binary
 python3 -m PyInstaller --noconfirm --clean --onefile \
+  --collect-data certifi \
   --name achieve3000_automation achieve3000_automation.py
 
 # Build launcher app bundle using spec file

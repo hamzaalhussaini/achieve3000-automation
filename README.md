@@ -43,11 +43,11 @@ The packaged launcher is created under `dist\Achieve3000Launcher\`.
 
 ## Build macOS app
 
-Run the macOS build on a Mac:
+Run the macOS build on a Mac. The generated DMG includes the drag-to-Applications layout:
 
 ```bash
 bash build_macos.sh
-hdiutil create -volname "Achieve3000" -srcfolder dist/Achieve3000Launcher.app -ov -format UDZO Achieve3000-macOS.dmg
+bash package_macos_dmg.sh
 ```
 
 ## Publish Windows and macOS releases
@@ -58,8 +58,8 @@ Push a version tag from the repository. GitHub Actions builds both launchers and
 git add .
 git commit -m "Prepare cross-platform release"
 git push origin master
-git tag v1.0.9
-git push origin v1.0.9
+git tag v1.0.14
+git push origin v1.0.14
 ```
 
 The release contains `Achieve3000Setup-v*.exe` and `Achieve3000-macOS.dmg`.
@@ -71,9 +71,10 @@ Because the app is open-source and not signed with an expensive Apple Developer 
 
 To install cleanly:
 1. Open the `.dmg` and drag **Achieve3000Launcher** to **Applications**.
-2. **Double-click `Fix Damaged App.command`** inside the DMG to unquarantine and launch the app immediately.
-   *(Or in macOS Terminal run: `xattr -cr /Applications/Achieve3000Launcher.app`)*
-3. Alternatively, right-click (Control-click) `Achieve3000Launcher.app` in `/Applications` and select **Open**.
+2. If macOS reports the app as damaged, run `Fix Damaged App.command` from the DMG after installation. If Gatekeeper blocks the helper, Control-click the helper and choose **Open**. It removes only `com.apple.quarantine` from the installed app, then opens it.
+3. If launch is still blocked, Control-click `Achieve3000Launcher.app` in Applications and select **Open**.
+
+The app is not Developer ID signed or notarized. The helper does not bypass administrator controls or disable certificate checks; it removes the download quarantine flag for this app only. Some managed Macs may prohibit this action through device policy.
 
 ## Configuration
 

@@ -82,13 +82,13 @@ AUTOMATION_FILE = Path(get_asset_path("achieve3000_automation.py"))
 AUTOMATION_EXE_NAME = "achieve3000_automation.exe" if IS_WIN else "achieve3000_automation"
 AUTOMATION_EXE = Path(get_asset_path(AUTOMATION_EXE_NAME))
 
-BG = "#0f172a"
-CARD = "#172033"
-CARD_2 = "#1e293b"
-TEXT = "#e5edf7"
-MUTED = "#94a3b8"
-ACCENT = "#38bdf8"
-ACCENT_DARK = "#075985"
+BG = "#0b1020"
+CARD = "#141d31"
+CARD_2 = "#0e1729"
+TEXT = "#eef4ff"
+MUTED = "#9aa9bf"
+ACCENT = "#63d2c6"
+ACCENT_DARK = "#147d7a"
 SUCCESS = "#34d399"
 ERROR = "#fb7185"
 
@@ -119,8 +119,8 @@ class AutomationLauncher(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Achieve3000 Runner")
-        self.geometry("780x680")
-        self.minsize(700, 580)
+        self.geometry("820x720")
+        self.minsize(720, 600)
         self.configure(bg=BG)
 
         self.output_queue = queue.Queue()
@@ -190,7 +190,7 @@ class AutomationLauncher(tk.Tk):
         style.configure("Subtitle.TLabel", background=BG, foreground=MUTED, font=(FONT_FAMILY, 10))
         style.configure("CardTitle.TLabel", background=CARD, foreground=TEXT, font=(FONT_FAMILY, 12, "bold"))
         style.configure("Field.TLabel", background=CARD, foreground=MUTED, font=(FONT_FAMILY, 9, "bold"))
-        style.configure("TEntry", fieldbackground=CARD_2, foreground=TEXT, insertcolor=TEXT, borderwidth=0, padding=9)
+        style.configure("TEntry", fieldbackground=CARD_2, foreground=TEXT, insertcolor=TEXT, borderwidth=1, padding=10, relief="flat")
         style.configure("TSpinbox", fieldbackground=CARD_2, foreground=TEXT, arrowsize=14, borderwidth=0, padding=8)
         style.configure(
             "Accent.TButton",
@@ -200,7 +200,7 @@ class AutomationLauncher(tk.Tk):
             borderwidth=0,
             padding=(18, 10),
         )
-        style.map("Accent.TButton", background=[("active", "#7dd3fc")])
+        style.map("Accent.TButton", background=[("active", "#8ce6db"), ("disabled", "#526978")], foreground=[("disabled", "#c5d3df")])
         style.configure(
             "Stop.TButton",
             background="#7f1d1d",
@@ -220,17 +220,17 @@ class AutomationLauncher(tk.Tk):
         )
 
     def _build_ui(self):
-        outer = ttk.Frame(self, padding=(28, 24))
+        outer = ttk.Frame(self, padding=(30, 26))
         outer.pack(fill="both", expand=True)
 
-        ttk.Label(outer, text="Achieve3000 Runner", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(outer, text="Achieve3000", style="Title.TLabel").pack(anchor="w")
         ttk.Label(
             outer,
-            text="Configure your session, then launch the Playwright workflow.",
+            text="Lesson automation · Configure your session and follow progress below.",
             style="Subtitle.TLabel",
         ).pack(anchor="w", pady=(3, 20))
 
-        card = ttk.Frame(outer, style="Card.TFrame", padding=22)
+        card = ttk.Frame(outer, style="Card.TFrame", padding=24)
         card.pack(fill="x")
         ttk.Label(card, text="Connection", style="CardTitle.TLabel").grid(
             row=0, column=0, columnspan=2, sticky="w", pady=(0, 18)
@@ -279,7 +279,7 @@ class AutomationLauncher(tk.Tk):
             side="right", pady=10
         )
 
-        output_card = ttk.Frame(outer, style="Card.TFrame", padding=14)
+        output_card = ttk.Frame(outer, style="Card.TFrame", padding=16)
         output_card.pack(fill="both", expand=True)
         ttk.Label(output_card, text="Live output", style="CardTitle.TLabel").pack(
             anchor="w", padx=6, pady=(0, 8)

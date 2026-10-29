@@ -24,31 +24,41 @@ fi
 
 APP_PATH="$DMG_ROOT/Achieve3000Launcher.app"
 
-# Strip quarantine / extended attributes from build environment
-xattr -cr "$APP_PATH" || true
-
-# Apply local ad-hoc code signature structure (helps Gatekeeper accept "Open Anyway")
-echo "Applying ad-hoc code signature..."
-codesign --force --verbose --sign - "$APP_PATH/Contents/MacOS/achieve3000_automation" || true
-codesign --force --verbose --sign - "$APP_PATH/Contents/MacOS/Achieve3000Launcher" || true
-codesign --force --verbose --sign - "$APP_PATH" || true
-
-# Create a 1-click helper script to unquarantine the app for users encountering "App is damaged"
+# Create a helper that removes only the quarantine attribute from the installed
+# app. Do not ad-hoc sign the bundle: PyInstaller/Playwright payloads are not
+# validly sealed by that signature and macOS can then report the app as damaged.
 cat << 'EOF' > "$DMG_ROOT/Fix Damaged App.command"
 #!/bin/bash
-DIR="$(cd "$(dirname "$0")" && pwd)"
+set -u
 echo "--------------------------------------------------------"
 echo " Fixing macOS Gatekeeper Quarantine for Achieve3000... "
 echo "--------------------------------------------------------"
 
-if [ -d "/Applications/Achieve3000Launcher.app" ]; then
-    xattr -cr "/Applications/Achieve3000Launcher.app"
-    echo "[SUCCESS] Removed macOS quarantine flag."
-    echo "Opening Achieve3000 Launcher..."
-    open "/Applications/Achieve3000Launcher.app"
-else
-    echo "[!] Please drag Achieve3000Launcher into your Applications folder first,"
-    echo "    then double-click this helper again."
+APP_PATH=""
+for candidate in \
+    "$HOME/Applications/Achieve3000Launcher.app" \
+    "/Applications/Achieve3000Launcher.app"; do
+    if [ -d "$candidate" ]; then APP_PATH="$candidate"; break; fi
+done
+
+if [ -z "$APP_PATH" ]; then
+    echo "App not found. Drag Achieve3000Launcher.app to Applications first."
+    read -r -p "Press Return to close..."
+    exit 1
+fi
+
+if ! /usr/bin/xattr -dr com.apple.quarantine "$APP_PATH"; then
+    echo "Could not remove quarantine from: $APP_PATH"
+    echo "Move the app to your personal Applications folder and run this helper again."
+    read -r -p "Press Return to close..."
+    exit 1
+fi
+
+echo "Removed the downloaded-app quarantine flag. Opening the installed app..."
+if ! /usr/bin/open "$APP_PATH"; then
+    echo "macOS still blocked launch. Control-click the app in Applications and choose Open."
+    read -r -p "Press Return to close..."
+    exit 1
 fi
 echo "You can close this window."
 EOF

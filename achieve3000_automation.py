@@ -1,9 +1,11 @@
 import json
 import os, sys, time, logging, re
+import ssl
 from typing import List, Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
+import certifi
 from playwright.sync_api import sync_playwright, Page
 
 try:
@@ -25,6 +27,11 @@ ALL_TYPES = ["2-Step Lesson", "5-Step Lesson", "Article Only", "Video", "Instruc
              "Video Lesson", "Article + Activity", "Activity"]
 MAX_AI_FAILURES = 5
 AI_RETRY_DELAY_SECONDS = 5
+
+# Use certifi's maintained CA bundle. This keeps HTTPS certificate validation
+# enabled in frozen macOS builds whose Python runtime may not have a usable
+# system CA path configured.
+HTTPS_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
 # Keep the normal flows conservative, but avoid stacking fixed sleeps on the
 # Ready/Reflect pages of a 5-step lesson.  Those pages are already rendered by
@@ -79,7 +86,7 @@ class AI:
                     method="POST",
                 )
                 try:
-                    with urlopen(request, timeout=45) as response:
+                    with urlopen(request, timeout=45, context=HTTPS_CONTEXT) as response:
                         result = json.loads(response.read().decode("utf-8"))
                     content = (result["choices"][0]["message"]["content"] or "").strip()
                     if content:

@@ -1,5 +1,7 @@
 $ErrorActionPreference = "Stop"
 
+python -m pip install --upgrade "pip>=26.2.2"
+if ($LASTEXITCODE -ne 0) { throw "Secure pip upgrade failed." }
 python -m pip install -r requirements.txt pyinstaller
 if ($LASTEXITCODE -ne 0) { throw "Python dependency installation failed." }
 
@@ -17,6 +19,7 @@ python -m PyInstaller --noconfirm --clean --onedir --noconsole --icon achieve300
 
 Copy-Item dist\achieve3000_automation.exe dist\Achieve3000Launcher\achieve3000_automation.exe
 Copy-Item -Recurse $browser_dir dist\Achieve3000Launcher\playwright-browsers
-if (Test-Path .env) { Copy-Item .env dist\Achieve3000Launcher\.env }
+# Credentials are entered in the launcher and saved under the user's profile.
+# Never copy a developer's local .env file into distributable build output.
 
 Write-Host "Created: dist\Achieve3000Launcher\Achieve3000Launcher.exe"
